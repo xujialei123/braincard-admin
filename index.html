@@ -13,15 +13,14 @@
       <div class="brand-mark">脑</div>
       <p class="eyebrow">BRAIN CARD · ADMIN</p>
       <h1>管理后台</h1>
-      <p class="muted">登录以查看运营数据和管理小程序配置。</p>
+      <p class="muted">使用已授权的 Supabase 管理员账号登录。</p>
       <form id="login-form">
-        <label>管理接口地址<input id="api-url" type="url" autocomplete="url" required></label>
-        <label>Supabase anon key<input id="anon-key" type="password" autocomplete="off" required></label>
-        <label>后台密码<input id="admin-password" type="password" autocomplete="current-password" required></label>
+        <label>邮箱<input id="admin-email" type="email" autocomplete="username" required></label>
+        <label>密码<input id="admin-password" type="password" autocomplete="current-password" required></label>
         <button class="button primary" type="submit">安全登录</button>
       </form>
       <p id="login-error" class="form-error" role="alert"></p>
-      <p class="security-note">只在可信设备使用。登录令牌保存在当前标签页，会在 4 小时后失效。</p>
+      <p class="security-note">仅有后台权限的 Supabase Auth 账号可以查看数据和修改配置。登录状态保存在当前标签页。</p>
     </section>
   </main>
 
