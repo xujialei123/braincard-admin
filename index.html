@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>脑洞角色馆 · 管理后台</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main id="login-view" class="login-wrap">
+    <section class="login-card">
+      <div class="brand-mark">脑</div>
+      <p class="eyebrow">BRAIN CARD · ADMIN</p>
+      <h1>管理后台</h1>
+      <p class="muted">登录以查看运营数据和管理小程序配置。</p>
+      <form id="login-form">
+        <label>管理接口地址<input id="api-url" type="url" autocomplete="url" required></label>
+        <label>Supabase anon key<input id="anon-key" type="password" autocomplete="off" required></label>
+        <label>后台密码<input id="admin-password" type="password" autocomplete="current-password" required></label>
+        <button class="button primary" type="submit">安全登录</button>
+      </form>
+      <p id="login-error" class="form-error" role="alert"></p>
+      <p class="security-note">只在可信设备使用。登录令牌保存在当前标签页，会在 4 小时后失效。</p>
+    </section>
+  </main>
+
+  <div id="app-view" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="side-brand"><div class="brand-mark small">脑</div><div><b>脑洞角色馆</b><span>管理后台</span></div></div>
+      <nav id="nav">
+        <button class="nav-item active" data-page="overview"><span>◫</span>数据概览</button>
+        <button class="nav-item" data-page="configs"><span>⚙</span>运行配置</button>
+        <button class="nav-item" data-page="audit"><span>◷</span>配置记录</button>
+      </nav>
+      <div class="sidebar-bottom"><span class="online-dot"></span>安全连接已启用<button id="logout" class="text-button">退出</button></div>
+    </aside>
+
+    <section class="main-area">
+      <header class="topbar"><div><p class="eyebrow">BRAIN CARD / CONSOLE</p><h1 id="page-title">数据概览</h1></div><div class="top-actions"><button id="refresh" class="button secondary">↻ <span>刷新数据</span></button><span id="last-updated" class="muted small-text"></span></div></header>
+
+      <section id="page-overview" class="page-content">
+        <div class="welcome-row"><div><h2>运营概况</h2><p class="muted">数据按中国标准时间汇总。选择时间范围查看每日变化。</p></div><div class="range-switch"><button data-days="7">7 天</button><button class="selected" data-days="30">30 天</button><button data-days="90">90 天</button></div></div>
+        <div id="metric-grid" class="metric-grid"><div class="loading-card">正在读取统计数据…</div></div>
+        <div class="panel chart-panel"><div class="panel-head"><div><h3>每日趋势</h3><p class="muted">新增用户、日子本新增、状态测试与好友邀请</p></div><span class="chart-period" id="chart-period">近 30 天</span></div><div id="chart" class="chart"></div><div class="legend"><span><i class="legend-user"></i>新用户</span><span><i class="legend-daybook"></i>日子本新增</span><span><i class="legend-status"></i>状态测试</span><span><i class="legend-invite"></i>好友邀请</span></div></div>
+        <div class="panel system-panel"><div class="panel-head"><div><h3>服务配置状态</h3><p class="muted">只显示是否已配置，不显示密钥内容。</p></div></div><div id="server-config" class="system-grid"></div></div>
+        <p class="data-footnote">说明：活跃用户数来自云端进度同步记录，不等同于小程序实际打开人数。分享点击目前通过微信分析后台查看，本面板不将分享菜单打开视为分享成功。</p>
+      </section>
+
+      <section id="page-configs" class="page-content hidden">
+        <div class="welcome-row"><div><h2>运行配置</h2><p class="muted">修改后写入 Supabase `app_config`，小程序重新读取后生效。</p></div><button id="add-config" class="button primary">＋ 新建配置</button></div>
+        <div class="notice"><b>变更提示</b><span>请确认 JSON 格式及开关影响。每次保存都会记录修改前后的值。</span></div>
+        <div id="config-list" class="config-list"><div class="loading-card">正在读取配置…</div></div>
+      </section>
+
+      <section id="page-audit" class="page-content hidden">
+        <div class="welcome-row"><div><h2>配置变更记录</h2><p class="muted">最近 40 次后台配置保存记录。</p></div></div>
+        <div id="audit-list" class="audit-list"><div class="loading-card">正在读取记录…</div></div>
+      </section>
+    </section>
+  </div>
+
+  <div id="config-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card"><div class="modal-head"><div><p class="eyebrow">APP CONFIG</p><h2 id="modal-title">编辑配置</h2></div><button id="modal-close" class="icon-button" aria-label="关闭">×</button></div>
+      <form id="config-form"><label>配置键<input id="config-key" maxlength="64" required pattern="[a-z][a-z0-9_]{1,63}"></label><label>用途说明<input id="config-description" maxlength="240"></label><label>JSON 配置值<textarea id="config-value" rows="10" spellcheck="false" required></textarea></label><p class="muted small-text">值必须是有效 JSON，例如：<code>{"enabled":false}</code>、<code>5</code> 或 <code>"文案"</code>。</p><div class="modal-actions"><button id="modal-cancel" class="button secondary" type="button">取消</button><button id="config-save" class="button primary" type="submit">保存配置</button></div><p id="config-error" class="form-error" role="alert"></p></form>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
+
