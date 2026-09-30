@@ -156,14 +156,357 @@
       $('#config-list').innerHTML = configs.map(function (config) {
         let preview = '';
         try { preview = JSON.stringify(config.value); } catch (e) { preview = String(config.value); }
-        return '<article class="config-card"><div class="config-icon">⚙</div><div class="config-main"><div class="config-key">' + safeText(config.key) + '</div><div class="config-desc">' + safeText(config.description || '暂无用途说明') + ' · 更新于 ' + safeText(formatDate(config.updated_at)) + '</div></div><code class="config-value">' + safeText(preview) + '</code><button class="button secondary" data-edit-config="' + safeText(config.key) + '">编辑</button></article>';
+        if (preview.length > 100) preview = preview.slice(0, 97) + '...';
+        return '<article class="config-card" data-edit-config="' + safeText(config.key) + '" role="button" tabindex="0">' +
+          '<div class="config-icon">⚙</div>' +
+          '<div class="config-main">' +
+            '<div class="config-key-row"><div class="config-key">' + safeText(config.key) + '</div></div>' +
+            '<div class="config-desc">' + safeText(config.description || '暂无用途说明') + ' · 更新于 ' + safeText(formatDate(config.updated_at)) + '</div>' +
+            '<code class="config-value">' + safeText(preview) + '</code>' +
+          '</div>' +
+          '<button class="button secondary config-edit-btn" type="button" data-edit-config="' + safeText(config.key) + '">编辑</button>' +
+          '</article>';
       }).join('');
-      $('#config-list').querySelectorAll('[data-edit-config]').forEach(function (button) {
-        button.addEventListener('click', function () { openConfig(button.dataset.editConfig); });
-      });
     } catch (e) {
       $('#config-list').innerHTML = '<div class="loading-card">配置读取失败：' + safeText(e.message) + '</div>';
     }
+  }
+
+  function findConfig(key) {
+    return configs.find(function (item) { return item.key === key; }) || null;
+  }
+
+  function parseConfigValue(raw, fallback) {
+    if (raw == null) return fallback;
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw); } catch (e) { return fallback; }
+    }
+    return raw;
+  }
+
+  function boolChecked(value) {
+    return value === true || value === 'true' || value === 1 || value === '1';
+  }
+
+  function field(label, html, full) {
+    return '<label class="' + (full ? 'full' : '') + '">' + label + html + '</label>';
+  }
+
+  function inputHtml(name, value, attrs) {
+    return '<input name="' + name + '" value="' + safeText(value == null ? '' : value) + '" ' + (attrs || '') + '>';
+  }
+
+  function textareaHtml(name, value, rows) {
+    return '<textarea name="' + name + '" rows="' + (rows || 3) + '" spellcheck="false">' + safeText(value == null ? '' : value) + '</textarea>';
+  }
+
+  function selectHtml(name, value, options) {
+    return '<select class="ops-select" name="' + name + '">' + options.map(function (opt) {
+      const selected = opt === value ? ' selected' : '';
+      return '<option value="' + safeText(opt) + '"' + selected + '>' + safeText(opt) + '</option>';
+    }).join('') + '</select>';
+  }
+
+  async function saveOpsConfig(key, value, description) {
+    await request('adminSaveConfig', { key: key, value: value, description: description });
+    showToast(key + ' 已保存');
+    await loadOps();
+  }
+
+  function renderVipPanel(config) {
+    const visible = boolChecked(config && config.value);
+    return '<section class="ops-panel" data-ops="vip_entry_visible"><h3>会员入口</h3><p class="ops-desc">控制「我的」页是否显示会员栏。关闭后小程序隐藏入口，无需发版。</p><div class="ops-row"><span>显示会员入口</span><label class="ops-toggle"><input type="checkbox" name="vip_visible"' + (visible ? ' checked' : '') + '> 开启</label></div><div class="ops-actions"><button class="button primary" type="button" data-save-ops="vip_entry_visible">保存</button></div></section>';
+  }
+
+  function renderAdsPanel(config) {
+    const value = parseConfigValue(config && config.value, {}) || {};
+    return '<section class="ops-panel" data-ops="rewarded_ads"><h3>激励广告</h3><p class="ops-desc">需填写有效微信广告位 ID 并开启后，小程序才展示看视频恢复次数。</p><div class="ops-grid">' +
+      field('启用广告', '<label class="ops-toggle"><input type="checkbox" name="enabled"' + (value.enabled === true ? ' checked' : '') + '> 开启</label>') +
+      field('广告位 ID', inputHtml('rewardAdUnitId', value.rewardAdUnitId || '', 'placeholder="adunit-xxxx"')) +
+      field('恢复次数', inputHtml('restoreAmount', value.restoreAmount != null ? value.restoreAmount : 5, 'type="number" min="1" max="50"')) +
+      field('每日上限', inputHtml('maxPerDay', value.maxPerDay != null ? value.maxPerDay : 1, 'type="number" min="1" max="10"')) +
+      field('超时毫秒', inputHtml('timeoutMs', value.timeoutMs != null ? value.timeoutMs : 90000, 'type="number" min="10000" max="180000"')) +
+      field('按钮文案（可选）', inputHtml('buttonText', value.buttonText || '', 'maxlength="32"')) +
+      '</div><div class="ops-actions"><button class="button primary" type="button" data-save-ops="rewarded_ads">保存</button></div></section>';
+  }
+
+  function renderGameplayPanel(config) {
+    const value = parseConfigValue(config && config.value, {}) || {};
+    return '<section class="ops-panel" data-ops="gameplay"><h3>玩法数值</h3><p class="ops-desc">每日翻卡、分享恢复、会员加成。小程序启动后读取，失败时回落本地默认值。</p><div class="ops-grid">' +
+      field('每日翻卡次数', inputHtml('dailyDrawLimit', value.dailyDrawLimit != null ? value.dailyDrawLimit : 10, 'type="number" min="1" max="50"')) +
+      field('会员每日加成', inputHtml('vipDailyBonus', value.vipDailyBonus != null ? value.vipDailyBonus : 3, 'type="number" min="0" max="30"')) +
+      field('分享恢复次数', inputHtml('shareRestoreAmount', value.shareRestoreAmount != null ? value.shareRestoreAmount : 5, 'type="number" min="1" max="50"')) +
+      field('分享每日上限', inputHtml('maxShareResetPerDay', value.maxShareResetPerDay != null ? value.maxShareResetPerDay : 2, 'type="number" min="0" max="20"')) +
+      field('启用分享恢复', '<label class="ops-toggle"><input type="checkbox" name="shareRestoreEnabled"' + (value.shareRestoreEnabled !== false ? ' checked' : '') + '> 开启</label>') +
+      '</div><div class="ops-actions"><button class="button primary" type="button" data-save-ops="gameplay">保存</button></div></section>';
+  }
+
+  function renderAnnouncementPanel(config) {
+    const value = parseConfigValue(config && config.value, {}) || {};
+    return '<section class="ops-panel" data-ops="home_announcement"><h3>首页公告</h3><p class="ops-desc">开启后首页弹一次；version 变化才会再弹。适合维护通知或活动说明。</p><div class="ops-grid">' +
+      field('启用公告', '<label class="ops-toggle"><input type="checkbox" name="enabled"' + (value.enabled === true ? ' checked' : '') + '> 开启</label>') +
+      field('版本号（变更才再弹）', inputHtml('version', value.version || '', 'placeholder="2026-09-30-a"')) +
+      field('标题', inputHtml('title', value.title || '', 'maxlength="40"'), true) +
+      field('正文', textareaHtml('content', value.content || '', 4), true) +
+      '</div><div class="ops-actions"><button class="button primary" type="button" data-save-ops="home_announcement">保存</button></div></section>';
+  }
+
+  function renderPaymentPanel(config) {
+    const products = Array.isArray(parseConfigValue(config && config.value, []))
+      ? parseConfigValue(config.value, [])
+      : [];
+    const cards = products.map(function (product, index) {
+      return '<div class="ops-item-card" data-product-index="' + index + '"><div class="ops-item-head"><b>' + safeText(product.id || ('商品 ' + (index + 1))) + '</b><label class="ops-toggle"><input type="checkbox" name="enabled"' + (product.enabled !== false ? ' checked' : '') + '> 上架</label></div><div class="ops-grid">' +
+        field('商品 ID', inputHtml('id', product.id || '', 'required')) +
+        field('名称', inputHtml('name', product.name || '')) +
+        field('会员天数', inputHtml('vipDays', product.vipDays != null ? product.vipDays : 30, 'type="number" min="1"')) +
+        field('价格（分）', inputHtml('amountFen', product.amountFen != null ? product.amountFen : 490, 'type="number" min="1"')) +
+        field('等级', inputHtml('vipLevel', product.vipLevel || 'plus')) +
+        field('说明', inputHtml('description', product.description || ''), true) +
+        '</div><div class="ops-inline"><button class="button secondary" type="button" data-remove-product="' + index + '">删除</button></div></div>';
+    }).join('') || '<div class="loading-card">还没有套餐，点下方添加。</div>';
+    return '<section class="ops-panel" data-ops="payment_products"><h3>会员商品</h3><p class="ops-desc">虚拟支付套餐。价格单位为分，须与微信虚拟支付道具价格一致。</p><div data-products>' + cards + '</div><div class="ops-actions"><button class="button secondary" type="button" data-add-product>＋ 添加套餐</button><button class="button primary" type="button" data-save-ops="payment_products">保存</button></div></section>';
+  }
+
+  function renderCatalogPanel(config) {
+    let packs = parseConfigValue(config && config.value, []);
+    if (packs && !Array.isArray(packs) && Array.isArray(packs.packs)) packs = packs.packs;
+    if (!Array.isArray(packs)) packs = [];
+    const cards = packs.map(function (pack, index) {
+      const unlock = pack.unlock && typeof pack.unlock === 'object' ? pack.unlock : null;
+      const characterIds = Array.isArray(pack.characterIds) ? pack.characterIds.join(',') : (pack.characterIds == null ? '' : String(pack.characterIds));
+      const teaser = Array.isArray(pack.teaserHints) ? pack.teaserHints.join(' / ') : '';
+      return '<div class="ops-item-card" data-pack-index="' + index + '"><div class="ops-item-head"><b>' + safeText(pack.id || ('pack-' + index)) + '</b>' +
+        selectHtml('status', pack.status || 'coming', ['open', 'coming', 'locked', 'ended', 'cleared']) +
+        '</div><div class="ops-grid">' +
+        field('ID', inputHtml('id', pack.id || '')) +
+        field('标题', inputHtml('title', pack.title || '')) +
+        field('副标题', inputHtml('subtitle', pack.subtitle || ''), true) +
+        field('关卡展示', inputHtml('season', pack.season || '')) +
+        field('角标', inputHtml('badge', pack.badge || '')) +
+        field('排序', inputHtml('sort', pack.sort != null ? pack.sort : index, 'type="number"')) +
+        field('封面 URL', inputHtml('cover', pack.cover || ''), true) +
+        field('角色 ID（逗号分隔，空=本地全量）', inputHtml('characterIds', characterIds), true) +
+        field('预告词（/ 分隔）', inputHtml('teaserHints', teaser), true) +
+        field('解锁依赖包 ID', inputHtml('requirePackId', unlock && unlock.requirePackId || '')) +
+        field('解锁最低完成%', inputHtml('minUnlockPercent', unlock && unlock.minUnlockPercent != null ? unlock.minUnlockPercent : '', 'type="number" min="0" max="100"')) +
+        '</div><div class="ops-inline"><button class="button secondary" type="button" data-remove-pack="' + index + '">删除篇章</button></div></div>';
+    }).join('') || '<div class="loading-card">还没有篇章配置。</div>';
+    return '<section class="ops-panel" data-ops="catalog_packs"><h3>图鉴篇章</h3><p class="ops-desc">闯关包远程配置。status=open 可进入；远程整表替换时请保留首章。</p><div data-packs>' + cards + '</div><div class="ops-actions"><button class="button secondary" type="button" data-add-pack>＋ 添加篇章</button><button class="button primary" type="button" data-save-ops="catalog_packs">保存</button></div></section>';
+  }
+
+  async function loadOps() {
+    const root = $('#ops-root');
+    root.innerHTML = '<div class="loading-card">正在读取运营配置…</div>';
+    try {
+      const result = await request('adminListConfigs');
+      configs = result.configs || [];
+      root.innerHTML = [
+        renderVipPanel(findConfig('vip_entry_visible')),
+        renderAdsPanel(findConfig('rewarded_ads')),
+        renderGameplayPanel(findConfig('gameplay')),
+        renderAnnouncementPanel(findConfig('home_announcement')),
+        renderPaymentPanel(findConfig('payment_products')),
+        renderCatalogPanel(findConfig('catalog_packs'))
+      ].join('');
+      bindOpsEvents();
+    } catch (e) {
+      root.innerHTML = '<div class="loading-card">运营配置读取失败：' + safeText(e.message) + '</div>';
+    }
+  }
+
+  function readPanelInputs(panel) {
+    const data = {};
+    panel.querySelectorAll('input, textarea, select').forEach(function (el) {
+      if (!el.name) return;
+      if (el.type === 'checkbox') data[el.name] = el.checked;
+      else data[el.name] = el.value;
+    });
+    return data;
+  }
+
+  function collectProducts(panel) {
+    return Array.from(panel.querySelectorAll('[data-product-index]')).map(function (card) {
+      const data = {};
+      card.querySelectorAll('input').forEach(function (el) {
+        if (!el.name) return;
+        data[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      return {
+        id: String(data.id || '').trim(),
+        type: 'vip',
+        name: String(data.name || '').trim(),
+        vipLevel: String(data.vipLevel || 'plus').trim() || 'plus',
+        vipDays: Number(data.vipDays) || 30,
+        amountFen: Number(data.amountFen) || 0,
+        enabled: data.enabled === true,
+        description: String(data.description || '').trim()
+      };
+    }).filter(function (item) { return item.id; });
+  }
+
+  function collectPacks(panel) {
+    return Array.from(panel.querySelectorAll('[data-pack-index]')).map(function (card) {
+      const data = {};
+      card.querySelectorAll('input, select').forEach(function (el) {
+        if (!el.name) return;
+        data[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+      });
+      const idsRaw = String(data.characterIds || '').trim();
+      let characterIds = null;
+      if (idsRaw) {
+        characterIds = idsRaw.split(/[,，\s]+/).map(function (id) { return id.trim(); }).filter(Boolean);
+      }
+      const teaserRaw = String(data.teaserHints || '').trim();
+      const teaserHints = teaserRaw
+        ? teaserRaw.split(/\s*\/\s*/).map(function (s) { return s.trim(); }).filter(Boolean)
+        : [];
+      const requirePackId = String(data.requirePackId || '').trim();
+      const minUnlockPercent = data.minUnlockPercent === '' || data.minUnlockPercent == null
+        ? null
+        : Number(data.minUnlockPercent);
+      let unlock = null;
+      if (requirePackId || minUnlockPercent != null) {
+        unlock = {};
+        if (requirePackId) unlock.requirePackId = requirePackId;
+        if (minUnlockPercent != null && Number.isFinite(minUnlockPercent)) unlock.minUnlockPercent = minUnlockPercent;
+      }
+      return {
+        id: String(data.id || '').trim(),
+        title: String(data.title || '').trim(),
+        subtitle: String(data.subtitle || '').trim(),
+        season: String(data.season || '').trim(),
+        status: String(data.status || 'coming').trim(),
+        sort: Number(data.sort) || 0,
+        badge: String(data.badge || '').trim(),
+        cover: String(data.cover || '').trim(),
+        characterIds: characterIds,
+        themeHint: 'chapter',
+        teaserHints: teaserHints,
+        unlock: unlock
+      };
+    }).filter(function (item) { return item.id; });
+  }
+
+  function bindOpsEvents() {
+    const root = $('#ops-root');
+    root.querySelectorAll('[data-save-ops]').forEach(function (button) {
+      button.addEventListener('click', async function () {
+        const key = button.dataset.saveOps;
+        const panel = root.querySelector('[data-ops="' + key + '"]');
+        if (!panel) return;
+        button.disabled = true;
+        try {
+          if (key === 'vip_entry_visible') {
+            const visible = !!panel.querySelector('[name="vip_visible"]').checked;
+            await saveOpsConfig(key, visible, '我的页「会员」栏是否显示；true 显示，false 隐藏');
+          } else if (key === 'rewarded_ads') {
+            const data = readPanelInputs(panel);
+            await saveOpsConfig(key, {
+              enabled: !!data.enabled,
+              rewardAdUnitId: String(data.rewardAdUnitId || '').trim(),
+              restoreAmount: Number(data.restoreAmount) || 5,
+              maxPerDay: Number(data.maxPerDay) || 1,
+              timeoutMs: Number(data.timeoutMs) || 90000,
+              buttonText: String(data.buttonText || '').trim()
+            }, '激励广告开关与参数；enabled=true 且 rewardAdUnitId 为有效微信广告位 ID 后才开放');
+          } else if (key === 'gameplay') {
+            const data = readPanelInputs(panel);
+            await saveOpsConfig(key, {
+              dailyDrawLimit: Number(data.dailyDrawLimit) || 10,
+              shareRestoreEnabled: !!data.shareRestoreEnabled,
+              shareRestoreAmount: Number(data.shareRestoreAmount) || 5,
+              maxShareResetPerDay: Number(data.maxShareResetPerDay) || 0,
+              vipDailyBonus: Number(data.vipDailyBonus) || 0
+            }, '玩法数值：每日翻卡、分享恢复、会员每日加成');
+          } else if (key === 'home_announcement') {
+            const data = readPanelInputs(panel);
+            await saveOpsConfig(key, {
+              enabled: !!data.enabled,
+              title: String(data.title || '').trim(),
+              content: String(data.content || '').trim(),
+              version: String(data.version || '').trim()
+            }, '首页运营公告；enabled=true 且有文案时弹出；version 变化才再弹一次');
+          } else if (key === 'payment_products') {
+            await saveOpsConfig(key, collectProducts(panel), '虚拟支付会员套餐；enabled=false 可下架；金额单位为分');
+          } else if (key === 'catalog_packs') {
+            await saveOpsConfig(key, collectPacks(panel), '图鉴篇章闯关包；可远程改标题/状态/角色列表/解锁门槛，无需发版');
+          }
+        } catch (e) {
+          showToast(e.message || '保存失败');
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+
+    const addProduct = root.querySelector('[data-add-product]');
+    if (addProduct) {
+      addProduct.addEventListener('click', function () {
+        const panel = root.querySelector('[data-ops="payment_products"]');
+        const products = collectProducts(panel);
+        products.push({
+          id: 'plus_new',
+          type: 'vip',
+          name: '新套餐',
+          vipLevel: 'plus',
+          vipDays: 30,
+          amountFen: 490,
+          enabled: false,
+          description: ''
+        });
+        const config = findConfig('payment_products') || { value: products };
+        config.value = products;
+        panel.outerHTML = renderPaymentPanel(config);
+        bindOpsEvents();
+      });
+    }
+
+    root.querySelectorAll('[data-remove-product]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const panel = root.querySelector('[data-ops="payment_products"]');
+        const products = collectProducts(panel);
+        const index = Number(button.dataset.removeProduct);
+        products.splice(index, 1);
+        const config = { value: products };
+        panel.outerHTML = renderPaymentPanel(config);
+        bindOpsEvents();
+      });
+    });
+
+    const addPack = root.querySelector('[data-add-pack]');
+    if (addPack) {
+      addPack.addEventListener('click', function () {
+        const panel = root.querySelector('[data-ops="catalog_packs"]');
+        const packs = collectPacks(panel);
+        packs.push({
+          id: 'ch-new',
+          title: '新篇章',
+          subtitle: '',
+          season: '新关',
+          status: 'coming',
+          sort: packs.length * 10,
+          badge: '预告',
+          cover: '',
+          characterIds: [],
+          teaserHints: [],
+          unlock: null
+        });
+        panel.outerHTML = renderCatalogPanel({ value: packs });
+        bindOpsEvents();
+      });
+    }
+
+    root.querySelectorAll('[data-remove-pack]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const panel = root.querySelector('[data-ops="catalog_packs"]');
+        const packs = collectPacks(panel);
+        const index = Number(button.dataset.removePack);
+        packs.splice(index, 1);
+        panel.outerHTML = renderCatalogPanel({ value: packs });
+        bindOpsEvents();
+      });
+    });
   }
 
   async function loadAudit() {
@@ -190,15 +533,18 @@
     return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false });
   }
   function openConfig(key) {
-    const config = configs.find(function (item) { return item.key === key; });
+    const configKey = String(key || '').trim();
+    const config = configKey ? configs.find(function (item) { return item.key === configKey; }) : null;
     $('#modal-title').textContent = config ? '编辑配置' : '新建配置';
     $('#config-key').value = config ? config.key : '';
     $('#config-key').readOnly = !!config;
+    $('#config-key').classList.toggle('is-readonly', !!config);
     $('#config-description').value = config ? (config.description || '') : '';
     $('#config-value').value = config ? JSON.stringify(config.value, null, 2) : '{\n  "enabled": false\n}';
     $('#config-error').textContent = '';
     $('#config-modal').classList.remove('hidden');
-    $('#config-key').focus();
+    if (config) $('#config-value').focus();
+    else $('#config-key').focus();
   }
   function closeModal() { $('#config-modal').classList.add('hidden'); }
 
@@ -226,9 +572,10 @@
 
   function openPage(page) {
     document.querySelectorAll('.nav-item').forEach(function (button) { button.classList.toggle('active', button.dataset.page === page); });
-    ['overview', 'configs', 'audit'].forEach(function (name) { $('#page-' + name).classList.toggle('hidden', name !== page); });
-    $('#page-title').textContent = { overview: '数据概览', configs: '运行配置', audit: '配置记录' }[page];
+    ['overview', 'ops', 'configs', 'audit'].forEach(function (name) { $('#page-' + name).classList.toggle('hidden', name !== page); });
+    $('#page-title').textContent = { overview: '数据概览', ops: '运营配置', configs: '运行配置', audit: '配置记录' }[page];
     if (page === 'overview') loadDashboard();
+    if (page === 'ops') loadOps();
     if (page === 'configs') loadConfigs();
     if (page === 'audit') loadAudit();
   }
@@ -237,6 +584,7 @@
   $('#refresh').addEventListener('click', function () {
     const active = document.querySelector('.nav-item.active').dataset.page;
     if (active === 'overview') loadDashboard();
+    if (active === 'ops') loadOps();
     if (active === 'configs') loadConfigs();
     if (active === 'audit') loadAudit();
   });
@@ -263,6 +611,19 @@
     });
   });
   $('#add-config').addEventListener('click', function () { openConfig(''); });
+  $('#config-list').addEventListener('click', function (event) {
+    const target = event.target.closest('[data-edit-config]');
+    if (!target || !$('#config-list').contains(target)) return;
+    event.preventDefault();
+    openConfig(target.getAttribute('data-edit-config') || '');
+  });
+  $('#config-list').addEventListener('keydown', function (event) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const target = event.target.closest('[data-edit-config]');
+    if (!target || target.tagName === 'BUTTON') return;
+    event.preventDefault();
+    openConfig(target.getAttribute('data-edit-config') || '');
+  });
   $('#config-form').addEventListener('submit', saveConfig);
   $('#modal-close').addEventListener('click', closeModal);
   $('#modal-cancel').addEventListener('click', closeModal);

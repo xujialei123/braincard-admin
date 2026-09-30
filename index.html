@@ -29,6 +29,7 @@
       <div class="side-brand"><div class="brand-mark small">脑</div><div><b>脑洞角色馆</b><span>管理后台</span></div></div>
       <nav id="nav">
         <button class="nav-item active" data-page="overview"><span>◫</span>数据概览</button>
+        <button class="nav-item" data-page="ops"><span>◆</span>运营配置</button>
         <button class="nav-item" data-page="configs"><span>⚙</span>运行配置</button>
         <button class="nav-item" data-page="audit"><span>◷</span>配置记录</button>
       </nav>
@@ -46,8 +47,14 @@
         <p class="data-footnote">说明：活跃用户数来自云端进度同步记录，不等同于小程序实际打开人数。分享点击目前通过微信分析后台查看，本面板不将分享菜单打开视为分享成功。</p>
       </section>
 
+      <section id="page-ops" class="page-content hidden">
+        <div class="welcome-row"><div><h2>运营配置</h2><p class="muted">常用开关与数值，保存后写入 app_config，小程序重新读取即生效，无需发版。</p></div></div>
+        <div class="notice"><b>使用说明</b><span>优先在本页改；需要高级 JSON 时再到「运行配置」。保存会记入变更审计。</span></div>
+        <div id="ops-root" class="ops-stack"><div class="loading-card">正在读取运营配置…</div></div>
+      </section>
+
       <section id="page-configs" class="page-content hidden">
-        <div class="welcome-row"><div><h2>运行配置</h2><p class="muted">修改后写入 Supabase `app_config`，小程序重新读取后生效。</p></div><button id="add-config" class="button primary">＋ 新建配置</button></div>
+        <div class="welcome-row"><div><h2>运行配置</h2><p class="muted">点右侧「编辑」或整行即可改 JSON；保存后写入 `app_config`，小程序重新读取后生效。</p></div><button id="add-config" class="button primary">＋ 新建配置</button></div>
         <div class="notice"><b>变更提示</b><span>请确认 JSON 格式及开关影响。每次保存都会记录修改前后的值。</span></div>
         <div id="config-list" class="config-list"><div class="loading-card">正在读取配置…</div></div>
       </section>
@@ -65,7 +72,7 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="./app.js"></script>
+  <script src="./app.js?v=20260930-edit"></script>
 </body>
 </html>
 
