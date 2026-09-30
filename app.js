@@ -1,8 +1,10 @@
 (function () {
   'use strict';
 
-  const DEFAULT_API_URL = 'https://idwcuvqskvuqpjizfpwl.supabase.co/functions/v1/braincard-api';
-  const STORE = { url: 'braincard_admin_api_url', key: 'braincard_admin_anon_key', token: 'braincard_admin_token' };
+  const SUPABASE_URL = 'https://idwcuvqskvuqpjizfpwl.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlkd2N1dnFza3Z1cXBqaXpmcHdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MzgzODIsImV4cCI6MjA5NjAxNDM4Mn0.lCXo6MTLiD8CW0_E2F2TJ55prv8qlop092NStloRvyw';
+  const API_URL = SUPABASE_URL + '/functions/v1/braincard-api';
+  const STORE = { token: 'braincard_admin_access_token', legacyToken: 'braincard_admin_token', legacyKey: 'braincard_admin_anon_key' };
   const $ = function (selector) { return document.querySelector(selector); };
   let days = 30;
   let configs = [];
@@ -11,7 +13,9 @@
   function read(key) { try { return sessionStorage.getItem(key) || ''; } catch (e) { return ''; } }
   function write(key, value) { try { sessionStorage.setItem(key, value); } catch (e) {} }
   function clearSession() {
-    [STORE.token, STORE.key].forEach(function (key) { try { sessionStorage.removeItem(key); } catch (e) {} });
+    [STORE.token, STORE.legacyToken, STORE.legacyKey, 'braincard_admin_api_url'].forEach(function (key) {
+      try { sessionStorage.removeItem(key); } catch (e) {}
+    });
   }
   function safeText(value) {
     return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
@@ -25,20 +29,23 @@
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { toast.classList.remove('visible'); }, 2500);
   }
-  function apiUrl() { return (read(STORE.url) || DEFAULT_API_URL).replace(/\/$/, ''); }
-
-  async function request(action, payload, authenticated) {
-    const anonKey = read(STORE.key);
-    const headers = { 'Content-Type': 'application/json', apikey: anonKey, Authorization: 'Bearer ' + anonKey };
-    if (authenticated !== false) headers['x-braincard-admin-token'] = read(STORE.token);
-    const response = await fetch(apiUrl(), {
+  async function request(action, payload) {
+    const headers = {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: 'Bearer ' + read(STORE.token)
+    };
+    const response = await fetch(API_URL, {
       method: 'POST', headers: headers, body: JSON.stringify(Object.assign({ action: action }, payload || {}))
     });
     const data = await response.json();
-    if (response.status === 401 && authenticated !== false) {
+    if (response.status === 401 || response.status === 403) {
+      const message = response.status === 403
+        ? '该 Supabase 账号没有后台权限。'
+        : '登录已过期，请重新登录。';
       clearSession();
-      showLogin('登录已过期，请重新登录。');
-      throw new Error('登录已过期');
+      showLogin(message);
+      throw new Error(data.message || message);
     }
     if (!response.ok || !data.ok) throw new Error(data.message || data.error || '请求失败');
     return data;
@@ -57,20 +64,25 @@
 
   async function onLogin(event) {
     event.preventDefault();
-    const url = ($('#api-url').value || DEFAULT_API_URL).trim();
-    const anonKey = $('#anon-key').value.trim();
+    const email = $('#admin-email').value.trim();
     const password = $('#admin-password').value;
     const error = $('#login-error');
     error.textContent = '';
-    write(STORE.url, url);
-    write(STORE.key, anonKey);
     try {
-      const result = await request('adminLogin', { password: password }, false);
-      write(STORE.token, result.token);
+      const response = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+        body: JSON.stringify({ email: email, password: password })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.access_token) {
+        throw new Error(result.msg || result.message || '邮箱或密码不正确。');
+      }
+      write(STORE.token, result.access_token);
       $('#admin-password').value = '';
       showApp();
     } catch (e) {
-      error.textContent = e.message || '登录失败，请检查接口配置和密码。';
+      error.textContent = e.message || '登录失败，请检查 Supabase Auth 账号和密码。';
     }
   }
 
@@ -222,15 +234,23 @@
   }
 
   $('#login-form').addEventListener('submit', onLogin);
-  $('#api-url').value = read(STORE.url) || DEFAULT_API_URL;
-  $('#anon-key').value = read(STORE.key);
   $('#refresh').addEventListener('click', function () {
     const active = document.querySelector('.nav-item.active').dataset.page;
     if (active === 'overview') loadDashboard();
     if (active === 'configs') loadConfigs();
     if (active === 'audit') loadAudit();
   });
-  $('#logout').addEventListener('click', function () { clearSession(); showLogin(''); });
+  $('#logout').addEventListener('click', function () {
+    const accessToken = read(STORE.token);
+    clearSession();
+    showLogin('');
+    if (accessToken) {
+      fetch(SUPABASE_URL + '/auth/v1/logout', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + accessToken }
+      }).catch(function () {});
+    }
+  });
   $('#nav').addEventListener('click', function (event) {
     const button = event.target.closest('[data-page]');
     if (button) openPage(button.dataset.page);
@@ -248,6 +268,6 @@
   $('#modal-cancel').addEventListener('click', closeModal);
   $('#config-modal').addEventListener('click', function (event) { if (event.target === $('#config-modal')) closeModal(); });
 
-  if (read(STORE.token) && read(STORE.key)) showApp();
+  if (read(STORE.token)) showApp();
 })();
 
