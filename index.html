@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>脑洞角色馆 · 管理后台</title>
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=20261005-art">
 </head>
 <body>
   <main id="login-view" class="login-wrap">
@@ -30,6 +30,8 @@
       <nav id="nav">
         <button class="nav-item active" data-page="overview"><span>◫</span>数据概览</button>
         <button class="nav-item" data-page="ops"><span>◆</span>运营配置</button>
+        <button class="nav-item" data-page="catalog"><span>▣</span>图鉴篇章</button>
+        <button class="nav-item" data-page="art"><span>◈</span>角色立绘</button>
         <button class="nav-item" data-page="configs"><span>⚙</span>运行配置</button>
         <button class="nav-item" data-page="audit"><span>◷</span>配置记录</button>
       </nav>
@@ -49,8 +51,18 @@
 
       <section id="page-ops" class="page-content hidden">
         <div class="welcome-row"><div><h2>运营配置</h2><p class="muted">常用开关与数值，保存后写入 app_config，小程序重新读取即生效，无需发版。</p></div></div>
-        <div class="notice"><b>使用说明</b><span>优先在本页改；需要高级 JSON 时再到「运行配置」。保存会记入变更审计。</span></div>
+        <div class="notice"><b>使用说明</b><span>图鉴篇章和角色立绘已独立成页。本页改开关/广告/会员即可。</span></div>
         <div id="ops-root" class="ops-stack"><div class="loading-card">正在读取运营配置…</div></div>
+      </section>
+
+      <section id="page-catalog" class="page-content hidden">
+        <div class="welcome-row"><div><h2>图鉴篇章</h2><p class="muted">配置闯关包标题、状态、角色名单和封面。保存后小程序重新读取即生效。</p></div><button id="add-pack" class="button primary" type="button">＋ 添加篇章</button></div>
+        <div id="catalog-root" class="ops-stack"><div class="loading-card">正在读取图鉴配置…</div></div>
+      </section>
+
+      <section id="page-art" class="page-content hidden">
+        <div class="welcome-row"><div><h2>角色立绘</h2><p class="muted">上传后覆盖默认 CDN 图。可随时恢复默认。小程序启动后读取，无需发版。</p></div><input id="art-search" class="search-input" placeholder="搜索角色名 / ID / 篇章"></div>
+        <div id="art-root" class="art-grid"><div class="loading-card">正在读取角色立绘…</div></div>
       </section>
 
       <section id="page-configs" class="page-content hidden">
@@ -72,7 +84,10 @@
     </div>
   </div>
   <div id="toast" class="toast" role="status"></div>
-  <script src="./app.js?v=20260930-edit"></script>
+  <input id="art-file" class="hidden" type="file" accept="image/jpeg,image/png,image/webp">
+  <input id="cover-file" class="hidden" type="file" accept="image/jpeg,image/png,image/webp">
+  <script src="./character-index.js"></script>
+  <script src="./app.js?v=20261005-art"></script>
 </body>
 </html>
 

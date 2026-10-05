@@ -210,7 +210,6 @@
   async function saveOpsConfig(key, value, description) {
     await request('adminSaveConfig', { key: key, value: value, description: description });
     showToast(key + ' 已保存');
-    await loadOps();
   }
 
   function renderVipPanel(config) {
@@ -306,8 +305,7 @@
         renderAdsPanel(findConfig('rewarded_ads')),
         renderGameplayPanel(findConfig('gameplay')),
         renderAnnouncementPanel(findConfig('home_announcement')),
-        renderPaymentPanel(findConfig('payment_products')),
-        renderCatalogPanel(findConfig('catalog_packs'))
+        renderPaymentPanel(findConfig('payment_products'))
       ].join('');
       bindOpsEvents();
     } catch (e) {
@@ -429,9 +427,8 @@
             }, '首页运营公告；enabled=true 且有文案时弹出；version 变化才再弹一次');
           } else if (key === 'payment_products') {
             await saveOpsConfig(key, collectProducts(panel), '虚拟支付会员套餐；enabled=false 可下架；金额单位为分');
-          } else if (key === 'catalog_packs') {
-            await saveOpsConfig(key, collectPacks(panel), '图鉴篇章闯关包；可远程改标题/状态/角色列表/解锁门槛，无需发版');
           }
+          await loadOps();
         } catch (e) {
           showToast(e.message || '保存失败');
         } finally {
@@ -473,38 +470,176 @@
         bindOpsEvents();
       });
     });
+  }
 
-    const addPack = root.querySelector('[data-add-pack]');
-    if (addPack) {
-      addPack.addEventListener('click', function () {
-        const panel = root.querySelector('[data-ops="catalog_packs"]');
-        const packs = collectPacks(panel);
-        packs.push({
-          id: 'ch-new',
-          title: '新篇章',
-          subtitle: '',
-          season: '新关',
-          status: 'coming',
-          sort: packs.length * 10,
-          badge: '预告',
-          cover: '',
-          characterIds: [],
-          teaserHints: [],
-          unlock: null
+  function characterList() {
+    return Array.isArray(window.BRAINCARD_CHARACTERS) ? window.BRAINCARD_CHARACTERS : [];
+  }
+
+  function characterMeta(id) {
+    const key = String(id || '').toUpperCase();
+    return characterList().find(function (item) { return item.id === key; }) || {
+      id: key, name: key, chapter: '', rarity: '', image: ''
+    };
+  }
+
+  function fileToPayload(file) {
+    if (!file) return Promise.reject(new Error('请选择图片'));
+    if (file.size > 2500000) return Promise.reject(new Error('图片请小于 2.5MB'));
+    return new Promise(function (resolve, reject) {
+      const reader = new FileReader();
+      reader.onload = function () {
+        resolve({
+          imageBase64: String(reader.result || ''),
+          contentType: file.type || 'image/jpeg'
         });
-        panel.outerHTML = renderCatalogPanel({ value: packs });
-        bindOpsEvents();
+      };
+      reader.onerror = function () { reject(new Error('读取图片失败')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderCatalogStudio(config) {
+    let packs = parseConfigValue(config && config.value, []);
+    if (packs && !Array.isArray(packs) && Array.isArray(packs.packs)) packs = packs.packs;
+    if (!Array.isArray(packs)) packs = [];
+    const cards = packs.map(function (pack, index) {
+      const unlock = pack.unlock && typeof pack.unlock === 'object' ? pack.unlock : null;
+      const ids = Array.isArray(pack.characterIds) ? pack.characterIds : [];
+      const chips = ids.map(function (id) {
+        const meta = characterMeta(id);
+        return '<span class="char-chip">' + safeText(meta.id + ' ' + meta.name) + '</span>';
+      }).join('') || '<span class="muted small-text">尚未指定角色</span>';
+      const cover = pack.cover
+        ? '<img class="cover-preview" src="' + safeText(pack.cover) + '" alt="">'
+        : '<div class="cover-preview empty">无封面</div>';
+      return '<div class="ops-item-card catalog-card" data-pack-index="' + index + '">' +
+        '<div class="ops-item-head"><b>' + safeText(pack.id || ('pack-' + index)) + '</b>' +
+        selectHtml('status', pack.status || 'coming', ['open', 'coming', 'locked', 'ended', 'cleared']) +
+        '</div><div class="catalog-layout">' + cover +
+        '<div class="ops-grid">' +
+        field('ID', inputHtml('id', pack.id || '')) +
+        field('标题', inputHtml('title', pack.title || '')) +
+        field('副标题', inputHtml('subtitle', pack.subtitle || ''), true) +
+        field('关卡展示', inputHtml('season', pack.season || '')) +
+        field('角标', inputHtml('badge', pack.badge || '')) +
+        field('排序', inputHtml('sort', pack.sort != null ? pack.sort : index, 'type="number"')) +
+        field('封面 URL', inputHtml('cover', pack.cover || ''), true) +
+        field('角色 ID（逗号分隔）', inputHtml('characterIds', ids.join(',')), true) +
+        field('预告词（/ 分隔）', inputHtml('teaserHints', Array.isArray(pack.teaserHints) ? pack.teaserHints.join(' / ') : ''), true) +
+        field('解锁依赖包 ID', inputHtml('requirePackId', unlock && unlock.requirePackId || '')) +
+        field('解锁最低完成%', inputHtml('minUnlockPercent', unlock && unlock.minUnlockPercent != null ? unlock.minUnlockPercent : '', 'type="number" min="0" max="100"')) +
+        '</div></div><div class="chip-row">' + chips + '</div>' +
+        '<div class="ops-inline">' +
+        '<button class="button secondary" type="button" data-upload-cover="' + index + '">上传封面</button>' +
+        '<button class="button secondary" type="button" data-remove-pack="' + index + '">删除篇章</button>' +
+        '</div></div>';
+    }).join('') || '<div class="loading-card">还没有篇章配置。</div>';
+    return '<section class="ops-panel" data-ops="catalog_packs"><p class="ops-desc">status=open 可进入。角色 ID 用逗号分隔，例如 C001,C002。封面可填 URL 或点上传。</p><div data-packs>' + cards + '</div><div class="ops-actions"><button class="button primary" type="button" data-save-ops="catalog_packs">保存图鉴配置</button></div></section>';
+  }
+
+  async function loadCatalog() {
+    const root = $('#catalog-root');
+    root.innerHTML = '<div class="loading-card">正在读取图鉴配置…</div>';
+    try {
+      const result = await request('adminListConfigs');
+      configs = result.configs || [];
+      root.innerHTML = renderCatalogStudio(findConfig('catalog_packs'));
+      bindCatalogEvents();
+    } catch (e) {
+      root.innerHTML = '<div class="loading-card">图鉴配置读取失败：' + safeText(e.message) + '</div>';
+    }
+  }
+
+  function bindCatalogEvents() {
+    const root = $('#catalog-root');
+    const saveBtn = root.querySelector('[data-save-ops="catalog_packs"]');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async function () {
+        const panel = root.querySelector('[data-ops="catalog_packs"]');
+        saveBtn.disabled = true;
+        try {
+          await saveOpsConfig('catalog_packs', collectPacks(panel), '图鉴篇章闯关包；可远程改标题/状态/角色列表/解锁门槛，无需发版');
+          await loadCatalog();
+        } catch (e) {
+          showToast(e.message || '保存失败');
+        } finally {
+          saveBtn.disabled = false;
+        }
       });
     }
-
     root.querySelectorAll('[data-remove-pack]').forEach(function (button) {
       button.addEventListener('click', function () {
         const panel = root.querySelector('[data-ops="catalog_packs"]');
         const packs = collectPacks(panel);
-        const index = Number(button.dataset.removePack);
-        packs.splice(index, 1);
-        panel.outerHTML = renderCatalogPanel({ value: packs });
-        bindOpsEvents();
+        packs.splice(Number(button.dataset.removePack), 1);
+        root.innerHTML = renderCatalogStudio({ value: packs });
+        bindCatalogEvents();
+      });
+    });
+    root.querySelectorAll('[data-upload-cover]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const input = $('#cover-file');
+        input.dataset.packIndex = button.dataset.uploadCover;
+        input.value = '';
+        input.click();
+      });
+    });
+  }
+
+  async function loadArt() {
+    const root = $('#art-root');
+    root.innerHTML = '<div class="loading-card">正在读取角色立绘…</div>';
+    try {
+      const result = await request('adminListConfigs');
+      configs = result.configs || [];
+      artImages = parseConfigValue(findConfig('character_images') && findConfig('character_images').value, {}) || {};
+      renderArtGrid();
+    } catch (e) {
+      root.innerHTML = '<div class="loading-card">立绘读取失败：' + safeText(e.message) + '</div>';
+    }
+  }
+
+  let artImages = {};
+  let artQuery = '';
+
+  function renderArtGrid() {
+    const q = String(artQuery || '').trim().toLowerCase();
+    const images = artImages && typeof artImages === 'object' ? artImages : {};
+    const list = characterList().filter(function (item) {
+      if (!q) return true;
+      return (item.id + ' ' + item.name + ' ' + item.chapter + ' ' + item.rarity).toLowerCase().indexOf(q) >= 0;
+    });
+    $('#art-root').innerHTML = list.map(function (item) {
+      const override = images[item.id] || '';
+      const src = override || item.image || '';
+      return '<article class="art-card">' +
+        '<img class="art-thumb" src="' + safeText(src) + '" alt="' + safeText(item.name) + '">' +
+        '<div class="art-meta"><b>' + safeText(item.id) + ' ' + safeText(item.name) + '</b>' +
+        '<span>' + safeText(item.chapter) + ' · ' + safeText(item.rarity) + (override ? ' · 已覆盖' : '') + '</span></div>' +
+        '<div class="ops-inline">' +
+        '<button class="button primary" type="button" data-upload-art="' + safeText(item.id) + '">更换立绘</button>' +
+        (override ? '<button class="button secondary" type="button" data-clear-art="' + safeText(item.id) + '">恢复默认</button>' : '') +
+        '</div></article>';
+    }).join('') || '<div class="loading-card">没有匹配的角色。</div>';
+    $('#art-root').querySelectorAll('[data-upload-art]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const input = $('#art-file');
+        input.dataset.characterId = button.dataset.uploadArt;
+        input.value = '';
+        input.click();
+      });
+    });
+    $('#art-root').querySelectorAll('[data-clear-art]').forEach(function (button) {
+      button.addEventListener('click', async function () {
+        try {
+          const res = await request('adminClearCharacterImage', { characterId: button.dataset.clearArt });
+          artImages = res.images || {};
+          renderArtGrid();
+          showToast('已恢复默认立绘');
+        } catch (e) {
+          showToast(e.message || '恢复失败');
+        }
       });
     });
   }
@@ -572,10 +707,12 @@
 
   function openPage(page) {
     document.querySelectorAll('.nav-item').forEach(function (button) { button.classList.toggle('active', button.dataset.page === page); });
-    ['overview', 'ops', 'configs', 'audit'].forEach(function (name) { $('#page-' + name).classList.toggle('hidden', name !== page); });
-    $('#page-title').textContent = { overview: '数据概览', ops: '运营配置', configs: '运行配置', audit: '配置记录' }[page];
+    ['overview', 'ops', 'catalog', 'art', 'configs', 'audit'].forEach(function (name) { $('#page-' + name).classList.toggle('hidden', name !== page); });
+    $('#page-title').textContent = { overview: '数据概览', ops: '运营配置', catalog: '图鉴篇章', art: '角色立绘', configs: '运行配置', audit: '配置记录' }[page];
     if (page === 'overview') loadDashboard();
     if (page === 'ops') loadOps();
+    if (page === 'catalog') loadCatalog();
+    if (page === 'art') loadArt();
     if (page === 'configs') loadConfigs();
     if (page === 'audit') loadAudit();
   }
@@ -585,6 +722,8 @@
     const active = document.querySelector('.nav-item.active').dataset.page;
     if (active === 'overview') loadDashboard();
     if (active === 'ops') loadOps();
+    if (active === 'catalog') loadCatalog();
+    if (active === 'art') loadArt();
     if (active === 'configs') loadConfigs();
     if (active === 'audit') loadAudit();
   });
@@ -628,6 +767,76 @@
   $('#modal-close').addEventListener('click', closeModal);
   $('#modal-cancel').addEventListener('click', closeModal);
   $('#config-modal').addEventListener('click', function (event) { if (event.target === $('#config-modal')) closeModal(); });
+  $('#add-pack').addEventListener('click', function () {
+    const panel = $('#catalog-root').querySelector('[data-ops="catalog_packs"]');
+    const packs = panel ? collectPacks(panel) : [];
+    packs.push({
+      id: 'ch-new',
+      title: '新篇章',
+      subtitle: '',
+      season: '新关',
+      status: 'coming',
+      sort: packs.length * 10,
+      badge: '预告',
+      cover: '',
+      characterIds: [],
+      teaserHints: [],
+      unlock: null
+    });
+    $('#catalog-root').innerHTML = renderCatalogStudio({ value: packs });
+    bindCatalogEvents();
+  });
+  $('#art-search').addEventListener('input', function () {
+    artQuery = this.value || '';
+    if ($('#page-art').classList.contains('hidden')) return;
+    renderArtGrid();
+  });
+  $('#art-file').addEventListener('change', async function () {
+    const file = this.files && this.files[0];
+    const characterId = this.dataset.characterId || '';
+    this.value = '';
+    if (!file || !characterId) return;
+    try {
+      const payload = await fileToPayload(file);
+      const res = await request('adminUploadCharacterImage', {
+        characterId: characterId,
+        imageBase64: payload.imageBase64,
+        contentType: payload.contentType
+      });
+      artImages = res.images || {};
+      renderArtGrid();
+      showToast('立绘已更新');
+    } catch (e) {
+      showToast(e.message || '上传失败');
+    }
+  });
+  $('#cover-file').addEventListener('change', async function () {
+    const file = this.files && this.files[0];
+    const index = Number(this.dataset.packIndex);
+    this.value = '';
+    const panel = $('#catalog-root').querySelector('[data-ops="catalog_packs"]');
+    if (!file || !panel || Number.isNaN(index)) return;
+    const packs = collectPacks(panel);
+    const pack = packs[index];
+    if (!pack || !pack.id) {
+      showToast('请先填写篇章 ID 再上传封面');
+      return;
+    }
+    try {
+      const payload = await fileToPayload(file);
+      const res = await request('adminUploadCatalogCover', {
+        packId: pack.id,
+        imageBase64: payload.imageBase64,
+        contentType: payload.contentType
+      });
+      packs[index].cover = res.coverUrl || packs[index].cover;
+      $('#catalog-root').innerHTML = renderCatalogStudio({ value: packs });
+      bindCatalogEvents();
+      showToast('封面已上传，记得保存图鉴配置');
+    } catch (e) {
+      showToast(e.message || '封面上传失败');
+    }
+  });
 
   if (read(STORE.token)) showApp();
 })();
