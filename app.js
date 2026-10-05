@@ -86,28 +86,61 @@
     }
   }
 
-  function metricCard(title, value, hint, icon) {
-    return '<article class="metric-card"><div class="metric-top"><span>' + safeText(title) + '</span><span class="metric-icon">' + icon + '</span></div><div class="metric-value">' + Number(value || 0).toLocaleString('zh-CN') + '</div><div class="metric-hint">' + safeText(hint) + '</div></article>';
+  function metricCard(title, value, hint) {
+    return '<article class="metric-card"><div class="metric-top"><span>' + safeText(title) + '</span></div><div class="metric-value">' + safeText(value) + '</div><div class="metric-hint">' + safeText(hint) + '</div></article>';
   }
 
-  function renderChart(series) {
-    const chart = $('#chart');
-    const metrics = [
-      { key: 'new_users', cls: 'bar-user' }, { key: 'daybook_entries', cls: 'bar-daybook' },
-      { key: 'status_tests', cls: 'bar-status' }, { key: 'friend_invites', cls: 'bar-invite' }
-    ];
-    const max = Math.max(1, ...series.flatMap(function (row) { return metrics.map(function (m) { return Number(row[m.key] || 0); }); }));
+  function formatCount(value) {
+    return Number(value || 0).toLocaleString('zh-CN');
+  }
+
+  function formatRate(num, den) {
+    const n = Number(num || 0);
+    const d = Number(den || 0);
+    if (!d) return '—';
+    return (Math.round(n / d * 1000) / 10).toFixed(1) + '%';
+  }
+
+  function formatYuan(fen) {
+    return '¥' + (Number(fen || 0) / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function characterName(id) {
+    const meta = characterMeta(id);
+    return meta && meta.name && meta.name !== id ? (id + ' ' + meta.name) : String(id || '');
+  }
+
+  function renderBars(target, series, metrics) {
+    const chart = $(target);
+    if (!chart) return;
+    const max = Math.max(1, ...series.flatMap(function (row) {
+      return metrics.map(function (m) { return Number(row[m.key] || 0); });
+    }));
     chart.innerHTML = series.map(function (row, index) {
       const date = String(row.metric_date || '').slice(5);
       const bars = metrics.map(function (metric) {
         const value = Number(row[metric.key] || 0);
         const height = value ? Math.max(3, Math.round(value / max * 100)) : 0;
-        return '<i class="bar ' + metric.cls + '" title="' + safeText(value) + '" style="height:' + height + '%"></i>';
+        return '<i class="bar ' + metric.cls + '" title="' + safeText(metric.label + ' ' + value) + '" style="height:' + height + '%"></i>';
       }).join('');
       const label = index === 0 || index === series.length - 1 || (days === 7) || date.slice(-2) === '01' ? date : '';
       return '<div class="chart-day"><div class="bar-stack">' + bars + '</div><span class="chart-label">' + safeText(label) + '</span></div>';
     }).join('');
-    $('#chart-period').textContent = '近 ' + series.length + ' 天';
+  }
+
+  function renderRank(target, rows, valueKey, hintKey) {
+    const el = $(target);
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) {
+      el.innerHTML = '<div class="loading-card">所选范围内暂无数据。</div>';
+      return;
+    }
+    const max = Math.max(1, ...list.map(function (row) { return Number(row[valueKey] || 0); }));
+    el.innerHTML = list.map(function (row, index) {
+      const amount = Number(row[valueKey] || 0);
+      const extra = hintKey ? (' · ' + formatCount(row[hintKey]) + ' 次获得') : '';
+      return '<div class="rank-row"><span class="rank-n">' + (index + 1) + '</span><div class="rank-main"><b>' + safeText(characterName(row.character_id)) + '</b><i class="rank-bar" style="width:' + Math.round(amount / max * 100) + '%"></i></div><span class="rank-val">' + formatCount(amount) + extra + '</span></div>';
+    }).join('');
   }
 
   function renderServerConfig(config) {
@@ -122,25 +155,78 @@
 
   async function loadDashboard() {
     $('#metric-grid').innerHTML = '<div class="loading-card">正在读取统计数据…</div>';
+    $('#rate-grid').innerHTML = '';
     try {
       const result = await request('adminGetDashboard', { days: days });
       const t = result.totals || {};
+      const snap = result.snapshot || {};
+      const period = snap.period || {};
+      const funnel = snap.funnel || {};
+      const retention = snap.retention || {};
+      const vip = snap.vip || {};
+      const revenue = snap.revenue || {};
+      const shares = snap.daybook_shares || {};
+      const identity = snap.identity || {};
+      const used = Number(identity.profiles_used || 0);
+      const wxUsers = Number(identity.profiles_wx || 0);
+      const allProfiles = Number(identity.profiles_all || t.profiles || 0);
       $('#metric-grid').innerHTML = [
-        metricCard('注册用户', t.profiles, '累计账号', '♙'),
-        metricCard('同步活跃用户', result.activeUsersToday, '今日云端进度同步', '↗'),
-        metricCard('日子本记录', t.daybook_entries, '累计创建条数', '♡'),
-        metricCard('状态测试结果', t.daily_statuses, '累计测试结果', '✦'),
-        metricCard('好友邀请', t.friend_invites, '累计发起', '⇧'),
-        metricCard('好友答题', t.friend_tests, '累计完成', '✓'),
-        metricCard('关系卡', t.relation_cards, '累计生成', '⌘'),
-        metricCard('已支付订单', result.paidOrders, '累计订单数', '￥')
+        metricCard('有效用户', formatCount(used), '测过状态 / 写过日子 / 有图鉴，不含仅打开'),
+        metricCard('微信账号', formatCount(wxUsers), '静默登录建档，含测朋友打开；改过昵称 ' + formatCount(identity.profiles_named)),
+        metricCard('全部档案', formatCount(allProfiles), '含未绑微信游客 ' + formatCount(identity.profiles_device) + ' · 打开过进度 ' + formatCount(identity.profiles_opened)),
+        metricCard('今日活跃', formatCount(result.activeUsersToday), '云端进度同步'),
+        metricCard('区间活跃', formatCount(period.active_users), '近 ' + days + ' 天有同步'),
+        metricCard('状态测试', formatCount(t.daily_statuses), '累计结果 · 近窗 ' + formatCount(period.status_tests)),
+        metricCard('日子本', formatCount(t.daybook_entries), '累计条目 · 近窗 ' + formatCount(period.daybook_entries)),
+        metricCard('图鉴解锁', formatCount(t.collection_unlocks), '用户×角色 · 近窗 ' + formatCount(period.collection_unlocks)),
+        metricCard('好友邀请', formatCount(t.friend_invites), '累计发起 · 近窗 ' + formatCount(period.friend_invites)),
+        metricCard('好友答题', formatCount(t.friend_tests), '累计完成 · 近窗 ' + formatCount(period.friend_tests)),
+        metricCard('关系卡', formatCount(t.relation_cards), '累计生成 · 近窗 ' + formatCount(period.relation_cards)),
+        metricCard('同类互动', formatCount(t.peer_reactions), '累计轻互动 · 近窗 ' + formatCount(period.peer_reactions)),
+        metricCard('日子同步', formatCount(t.daybook_shares), '待确认 ' + formatCount(shares.pending) + ' · 已接受 ' + formatCount(shares.accepted)),
+        metricCard('有效会员', formatCount(vip.active), 'Plus ' + formatCount(vip.plus) + ' / Pro ' + formatCount(vip.pro)),
+        metricCard('已支付订单', formatCount(t.paid_orders), '近窗 ' + formatCount(period.paid_orders)),
+        metricCard('支付金额', formatYuan(revenue.paid_amount_fen), '近窗 ' + formatYuan(revenue.period_amount_fen))
       ].join('');
-      renderChart(result.series || []);
+      $('#rate-grid').innerHTML = [
+        metricCard('首测完成率', formatRate(funnel.status_users, wxUsers), formatCount(funnel.status_users) + ' 人测过状态 / 微信账号'),
+        metricCard('日子本渗透', formatRate(funnel.daybook_users, used), formatCount(funnel.daybook_users) + ' 人写过日子 / 有效用户'),
+        metricCard('图鉴渗透', formatRate(funnel.collection_users, used), formatCount(funnel.collection_users) + ' 人有云端图鉴 / 有效用户'),
+        metricCard('好友完成率', formatRate(period.friend_tests, period.friend_invites), '近窗答题 / 邀请；累计 ' + formatRate(t.friend_tests, t.friend_invites)),
+        metricCard('关系卡生成率', formatRate(period.relation_cards, period.friend_tests), '近窗关系卡 / 答题；累计 ' + formatRate(t.relation_cards, t.friend_tests)),
+        metricCard('日子同步接受率', formatRate(shares.accepted, t.daybook_shares), '已接受 / 全部同步请求'),
+        metricCard('付费转化', formatRate(funnel.paid_users, wxUsers), formatCount(funnel.paid_users) + ' 人付过费 / 微信账号'),
+        metricCard('D1 留存', formatRate(retention.d1_returned, retention.d1_cohort), '昨日新用户 ' + formatCount(retention.d1_cohort) + '，今日仍同步 ' + formatCount(retention.d1_returned)),
+        metricCard('D7 留存', formatRate(retention.d7_returned, retention.d7_cohort), '7 日前新用户 ' + formatCount(retention.d7_cohort) + '，今日仍同步 ' + formatCount(retention.d7_returned)),
+        metricCard('人均持有角色', funnel.avg_characters == null ? '0' : String(funnel.avg_characters), '有图鉴用户平均 · 相对有效用户 ' + (used ? (Number(t.collection_unlocks || 0) / used).toFixed(2) : '0')),
+        metricCard('状态互动率', funnel.avg_reactions_per_status == null ? '0' : String(funnel.avg_reactions_per_status), '每条状态卡平均互动次数')
+      ].join('');
+      const series = result.series || [];
+      renderBars('#chart', series, [
+        { key: 'new_users', cls: 'bar-user', label: '新用户' },
+        { key: 'active_users', cls: 'bar-active', label: '活跃' },
+        { key: 'status_tests', cls: 'bar-status', label: '状态测试' },
+        { key: 'friend_invites', cls: 'bar-invite', label: '好友邀请' }
+      ]);
+      renderBars('#chart-social', series, [
+        { key: 'daybook_entries', cls: 'bar-daybook', label: '日子本' },
+        { key: 'relation_cards', cls: 'bar-card', label: '关系卡' },
+        { key: 'daybook_shares', cls: 'bar-share', label: '日子同步' },
+        { key: 'paid_orders', cls: 'bar-pay', label: '已支付' }
+      ]);
+      $('#chart-period').textContent = '近 ' + series.length + ' 天';
+      $('#chart-period-social').textContent = '近 ' + series.length + ' 天';
+      renderRank('#top-status', snap.top_status_characters, 'amount');
+      renderRank('#top-collection', snap.top_collection_characters, 'owners', 'copies');
       renderServerConfig(result.serverConfig || {});
       $('#last-updated').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
       $('#metric-grid').innerHTML = '<div class="loading-card">统计数据加载失败：' + safeText(e.message) + '</div>';
       $('#chart').innerHTML = '';
+      $('#chart-social').innerHTML = '';
+      $('#rate-grid').innerHTML = '';
+      $('#top-status').innerHTML = '';
+      $('#top-collection').innerHTML = '';
     }
   }
 

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>脑洞角色馆 · 管理后台</title>
-  <link rel="stylesheet" href="./style.css?v=20261005-art">
+  <link rel="stylesheet" href="./style.css?v=20261005-stats">
 </head>
 <body>
   <main id="login-view" class="login-wrap">
@@ -44,9 +44,17 @@
       <section id="page-overview" class="page-content">
         <div class="welcome-row"><div><h2>运营概况</h2><p class="muted">数据按中国标准时间汇总。选择时间范围查看每日变化。</p></div><div class="range-switch"><button data-days="7">7 天</button><button class="selected" data-days="30">30 天</button><button data-days="90">90 天</button></div></div>
         <div id="metric-grid" class="metric-grid"><div class="loading-card">正在读取统计数据…</div></div>
-        <div class="panel chart-panel"><div class="panel-head"><div><h3>每日趋势</h3><p class="muted">新增用户、日子本新增、状态测试与好友邀请</p></div><span class="chart-period" id="chart-period">近 30 天</span></div><div id="chart" class="chart"></div><div class="legend"><span><i class="legend-user"></i>新用户</span><span><i class="legend-daybook"></i>日子本新增</span><span><i class="legend-status"></i>状态测试</span><span><i class="legend-invite"></i>好友邀请</span></div></div>
+        <div class="panel"><div class="panel-head"><div><h3>转化与留存</h3><p class="muted">可从业务表算出的比率。微信分享成功、测试开始次数需分析后台，这里没有。</p></div></div><div id="rate-grid" class="rate-grid"></div></div>
+        <div class="chart-split">
+          <div class="panel chart-panel"><div class="panel-head"><div><h3>增长与活跃</h3><p class="muted">新用户、云端活跃、状态测试、好友邀请</p></div><span class="chart-period" id="chart-period">近 30 天</span></div><div id="chart" class="chart"></div><div class="legend"><span><i class="legend-user"></i>新用户</span><span><i class="legend-active"></i>活跃</span><span><i class="legend-status"></i>状态测试</span><span><i class="legend-invite"></i>好友邀请</span></div></div>
+          <div class="panel chart-panel"><div class="panel-head"><div><h3>内容与付费</h3><p class="muted">日子本、关系卡、日子同步、已支付订单</p></div><span class="chart-period" id="chart-period-social">近 30 天</span></div><div id="chart-social" class="chart"></div><div class="legend"><span><i class="legend-daybook"></i>日子本</span><span><i class="legend-card"></i>关系卡</span><span><i class="legend-share"></i>日子同步</span><span><i class="legend-pay"></i>已支付</span></div></div>
+        </div>
+        <div class="chart-split">
+          <div class="panel"><div class="panel-head"><div><h3>区间热门状态角色</h3><p class="muted">所选时间范围内今日状态出镜次数</p></div></div><div id="top-status" class="rank-list"></div></div>
+          <div class="panel"><div class="panel-head"><div><h3>图鉴持有 Top</h3><p class="muted">拥有该角色的用户数</p></div></div><div id="top-collection" class="rank-list"></div></div>
+        </div>
         <div class="panel system-panel"><div class="panel-head"><div><h3>服务配置状态</h3><p class="muted">只显示是否已配置，不显示密钥内容。</p></div></div><div id="server-config" class="system-grid"></div></div>
-        <p class="data-footnote">说明：活跃用户数来自云端进度同步记录，不等同于小程序实际打开人数。分享点击目前通过微信分析后台查看，本面板不将分享菜单打开视为分享成功。</p>
+        <p class="data-footnote">说明：以前「注册用户」按 profiles 全表计数，开发工具清缓存、旧设备号游客、测朋友点开都会各建一条。现在「有效用户」= 测过状态/写过日子/有图鉴；「微信账号」= 有 openid 的静默登录档案；「全部档案」才是表内总行数。趋势里的新用户只计绑了微信的档案。活跃仍来自 last_active_date。</p>
       </section>
 
       <section id="page-ops" class="page-content hidden">
@@ -87,7 +95,7 @@
   <input id="art-file" class="hidden" type="file" accept="image/jpeg,image/png,image/webp">
   <input id="cover-file" class="hidden" type="file" accept="image/jpeg,image/png,image/webp">
   <script src="./character-index.js"></script>
-  <script src="./app.js?v=20261005-art"></script>
+  <script src="./app.js?v=20261005-users"></script>
 </body>
 </html>
 
