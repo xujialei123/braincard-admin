@@ -369,7 +369,7 @@
     const value = parseConfigValue(config && config.value, {}) || {};
     const p = value.puzzle && typeof value.puzzle === 'object' ? value.puzzle : {};
     const k = value.pack && typeof value.pack === 'object' ? value.pack : {};
-    return '<section class="ops-panel" data-ops="date_puzzle_gameplay"><h3>日期拼图 / 日历铺砖</h3><p class="ops-desc">挑战次数、限时、提示与通关奖励。小程序读远程配置，失败回落本地默认。</p>' +
+    return '<section class="ops-panel" data-ops="date_puzzle_gameplay"><h3>日期拼图 / 日历拼图</h3><p class="ops-desc">挑战次数、提示与通关奖励。日历拼图为正计时+步数。小程序读远程配置，失败回落本地默认。</p>' +
       '<p class="ops-desc"><b>日期拼图（华容道）</b></p><div class="ops-grid">' +
       field('每日免费次数', inputHtml('puzzleFreePlays', p.freePlays != null ? p.freePlays : 1, 'type="number" min="0" max="20"')) +
       field('会员额外次数', inputHtml('puzzleVipExtraPlays', p.vipExtraPlays != null ? p.vipExtraPlays : 2, 'type="number" min="0" max="20"')) +
@@ -382,10 +382,7 @@
       field('通关翻卡奖励', inputHtml('puzzleDrawReward', p.drawReward != null ? p.drawReward : 2, 'type="number" min="0" max="20"')) +
       field('参与安慰奖翻卡', inputHtml('puzzleTryReward', p.tryReward != null ? p.tryReward : 1, 'type="number" min="0" max="20"')) +
       field('每日通关奖励上限', inputHtml('puzzleMaxRewardsPerDay', p.maxRewardsPerDay != null ? p.maxRewardsPerDay : 3, 'type="number" min="0" max="30"')) +
-      '</div><p class="ops-desc"><b>日历铺砖（365 解法）</b></p><div class="ops-grid">' +
-      field('限时（秒）', inputHtml('packTimeLimitSec', k.timeLimitSec != null ? k.timeLimitSec : 360, 'type="number" min="60" max="7200"')) +
-      field('会员限时（秒）', inputHtml('packVipTimeLimitSec', k.vipTimeLimitSec != null ? k.vipTimeLimitSec : 540, 'type="number" min="60" max="7200"')) +
-      field('局内加时（秒）', inputHtml('packExtraTimeSec', k.extraTimeSec != null ? k.extraTimeSec : 90, 'type="number" min="0" max="1200"')) +
+      '</div><p class="ops-desc"><b>日历拼图（正计时）</b></p><div class="ops-grid">' +
       field('通关翻卡奖励', inputHtml('packDrawReward', k.drawReward != null ? k.drawReward : 3, 'type="number" min="0" max="20"')) +
       field('每日免费提示', inputHtml('packFreeHints', k.freeHints != null ? k.freeHints : 1, 'type="number" min="0" max="20"')) +
       field('会员额外提示', inputHtml('packVipExtraHints', k.vipExtraHints != null ? k.vipExtraHints : 2, 'type="number" min="0" max="20"')) +
@@ -589,16 +586,13 @@
                 maxRewardsPerDay: Number(data.puzzleMaxRewardsPerDay) || 0
               },
               pack: {
-                timeLimitSec: Number(data.packTimeLimitSec) || 360,
-                vipTimeLimitSec: Number(data.packVipTimeLimitSec) || 540,
-                extraTimeSec: Number(data.packExtraTimeSec) || 0,
                 drawReward: Number(data.packDrawReward) || 0,
                 freeHints: Number(data.packFreeHints) || 0,
                 vipExtraHints: Number(data.packVipExtraHints) || 0,
                 hintShareMax: Number(data.packHintShareMax) || 0,
                 hintAdMax: Number(data.packHintAdMax) || 0
               }
-            }, '日期拼图与日历铺砖：每日次数、会员加成、广告/分享加次、限时、提示与通关奖励');
+            }, '日期拼图与日历拼图：次数、提示与通关奖励');
           } else if (key === 'home_announcement') {
             const data = readPanelInputs(panel);
             await saveOpsConfig(key, {
