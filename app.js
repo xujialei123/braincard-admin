@@ -110,6 +110,41 @@
     return meta && meta.name && meta.name !== id ? (id + ' ' + meta.name) : String(id || '');
   }
 
+  const PACK_TITLES = {
+    'fest-slot': '节日限定',
+    'ch0-life': '生活观察',
+    'ch1-work': '打工人现场',
+    'ch2-bond': '心动关系',
+    'ch3-social': '社交场',
+    'ch4-solo': '独居租房',
+    'ch5-family': '家庭轻日常',
+    'ch6-campus': '校园回忆'
+  };
+
+  function packWantLabel(id) {
+    const title = PACK_TITLES[id];
+    return title ? (id + ' ' + title) : String(id || '');
+  }
+
+  function renderWantRank(target, rows) {
+    const el = $(target);
+    if (!el) return;
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) {
+      el.innerHTML = '<div class="loading-card">还没有人点「想玩」。节日关预告上的催更会记到这里。</div>';
+      return;
+    }
+    const max = Math.max(1, ...list.map(function (row) { return Number(row.users || 0); }));
+    el.innerHTML = list.map(function (row, index) {
+      const users = Number(row.users || 0);
+      const clicks = Number(row.clicks || 0);
+      return '<div class="rank-row"><span class="rank-n">' + (index + 1) + '</span><div class="rank-main"><b>' +
+        safeText(packWantLabel(row.pack_id)) +
+        '</b><i class="rank-bar" style="width:' + Math.round(users / max * 100) + '%"></i></div><span class="rank-val">' +
+        formatCount(users) + ' 人 · ' + formatCount(clicks) + ' 次</span></div>';
+    }).join('');
+  }
+
   function renderBars(target, series, metrics) {
     const chart = $(target);
     if (!chart) return;
@@ -167,6 +202,7 @@
       const revenue = snap.revenue || {};
       const shares = snap.daybook_shares || {};
       const identity = snap.identity || {};
+      const wants = snap.catalog_wants || {};
       const used = Number(identity.profiles_used || 0);
       const wxUsers = Number(identity.profiles_wx || 0);
       const allProfiles = Number(identity.profiles_all || t.profiles || 0);
@@ -179,6 +215,7 @@
         metricCard('状态测试', formatCount(t.daily_statuses), '累计结果 · 近窗 ' + formatCount(period.status_tests)),
         metricCard('日子本', formatCount(t.daybook_entries), '累计条目 · 近窗 ' + formatCount(period.daybook_entries)),
         metricCard('图鉴解锁', formatCount(t.collection_unlocks), '用户×角色 · 近窗 ' + formatCount(period.collection_unlocks)),
+        metricCard('图鉴想玩', formatCount(wants.users), '点过催更的人数 · 点击 ' + formatCount(wants.clicks) + ' · 近窗 ' + formatCount(wants.period_clicks)),
         metricCard('好友邀请', formatCount(t.friend_invites), '累计发起 · 近窗 ' + formatCount(period.friend_invites)),
         metricCard('好友答题', formatCount(t.friend_tests), '累计完成 · 近窗 ' + formatCount(period.friend_tests)),
         metricCard('关系卡', formatCount(t.relation_cards), '累计生成 · 近窗 ' + formatCount(period.relation_cards)),
@@ -218,6 +255,7 @@
       $('#chart-period-social').textContent = '近 ' + series.length + ' 天';
       renderRank('#top-status', snap.top_status_characters, 'amount');
       renderRank('#top-collection', snap.top_collection_characters, 'owners', 'copies');
+      renderWantRank('#top-catalog-want', wants.by_pack);
       renderServerConfig(result.serverConfig || {});
       $('#last-updated').textContent = '更新于 ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     } catch (e) {
@@ -227,6 +265,7 @@
       $('#rate-grid').innerHTML = '';
       $('#top-status').innerHTML = '';
       $('#top-collection').innerHTML = '';
+      $('#top-catalog-want').innerHTML = '';
     }
   }
 

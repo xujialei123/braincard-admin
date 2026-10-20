@@ -53,6 +53,7 @@
           <div class="panel"><div class="panel-head"><div><h3>区间热门状态角色</h3><p class="muted">所选时间范围内今日状态出镜次数</p></div></div><div id="top-status" class="rank-list"></div></div>
           <div class="panel"><div class="panel-head"><div><h3>图鉴持有 Top</h3><p class="muted">拥有该角色的用户数</p></div></div><div id="top-collection" class="rank-list"></div></div>
         </div>
+        <div class="panel"><div class="panel-head"><div><h3>图鉴想玩 / 催更</h3><p class="muted">预告关点「想玩」的人数与次数（含节日限定）</p></div></div><div id="top-catalog-want" class="rank-list"></div></div>
         <div class="panel system-panel"><div class="panel-head"><div><h3>服务配置状态</h3><p class="muted">只显示是否已配置，不显示密钥内容。</p></div></div><div id="server-config" class="system-grid"></div></div>
         <p class="data-footnote">说明：以前「注册用户」按 profiles 全表计数，开发工具清缓存、旧设备号游客、测朋友点开都会各建一条。现在「有效用户」= 测过状态/写过日子/有图鉴；「微信账号」= 有 openid 的静默登录档案；「全部档案」才是表内总行数。趋势里的新用户只计绑了微信的档案。活跃仍来自 last_active_date。</p>
       </section>
@@ -95,7 +96,7 @@
   <input id="art-file" class="hidden" type="file" accept="image/jpeg,image/png,image/webp">
   <input id="cover-file" class="hidden" type="file" accept="image/jpeg,image/png,image/webp">
   <script src="./character-index.js"></script>
-  <script src="./app.js?v=20261005-users"></script>
+  <script src="./app.js?v=20261005-want"></script>
 </body>
 </html>
 
